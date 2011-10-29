@@ -42,14 +42,41 @@ main
 ! !
 
 Object subclass: #NHandler
-	instanceVariableNames: ''
+	instanceVariableNames: 'request response'
 	category: 'Nodis'!
 
 !NHandler methodsFor: 'not yet classified'!
 
-notFound: aResponse
-	aResponse writeHead: 404.
-	aResponse end.
+request
+	^request
+!
+
+request: aRequest
+	request := aRequest
+!
+
+response
+	^ response
+!
+
+response: aResponse
+	response := aResponse
+!
+
+notFound
+	self response writeHead: 404.
+	self response end.
+! !
+
+!NHandler class methodsFor: 'not yet classified'!
+
+request: aRequest response: aResponse
+	"Create a new Handler instance with a request and response objects"
+	|handler|
+	handler := self new.
+	handler request: aRequest.
+	handler response: aResponse.
+	^ handler
 ! !
 
 Object subclass: #NApp
@@ -165,27 +192,39 @@ manage: request returning: response
 				ifTrue: [self notFound: response]
 !
 
-collection: aModel
-	^ 'foo' asJSON
+initialize
+	super initialize.
+	querystring := require value: 'querystring'.
+	redis := (require value: 'redis') createClient.
 !
 
-collectionOf: aModel requestedOn: aRequest andReturnedIn: aResponse 
+collectionOf: aModel 
 	console log: 'collection of',aModel.
 	redis lrange:aModel from:0 to: -1 eachDo: [:error :val | 
 										console log: val.
 										console log: error.
 										val isKindOf: Array
-										ifTrue: [aResponse writehead:200
-											     withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
-											      aResponse end: val asJSON encoding: 'utf8']
-										ifFalse: [self notFound: aResponse] 
+										ifTrue: [self responseOkWitVal: val asJSON]
+										ifFalse: [self notFound] 
  ].
 !
 
-initialize
-	super initialize.
-	querystring := require value: 'querystring'.
-	redis := (require value: 'redis') createClient.
-	methodHash := #{ '^/([^/]*)/?$' -> 'collectionOf:requestedOn:andReturnedIn:'}.
+responseOk
+	response writehead:200
+	withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
+!
+
+responseOkWithVal: val
+	self responseOk.
+	self response end: val asJSON encoding: 'utf8'
+!
+
+memberOf: aModel withId: aNumber
+	self redis lindex: aModel 
+			at: aNumber 
+			do: [:err :val |
+				val size >0
+					ifTrue: [self responseOkWithVal: val asJSON]
+					ifFalse: [self notFound]]
 ! !
 
