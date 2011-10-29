@@ -50,7 +50,6 @@ Object subclass: #NHandler
 notFound: aResponse
 	aResponse writeHead: 404.
 	aResponse end.
-	^aResponse.
 ! !
 
 Object subclass: #NApp
@@ -100,32 +99,6 @@ put: aPath
 	self subclassResponsability
 ! !
 
-Object subclass: #Routes
-	instanceVariableNames: 'routes'
-	category: 'Nodis'!
-
-!Routes methodsFor: 'not yet classified'!
-
-initialize
-	super initialize.
-	routes := Dictionary new.
-	routes at: 'GET' put: (Dictionary new at: '/libros' put: self libros).
-!
-
-libros
-	console log: 'libros route'.
-	^ 'hola'
-!
-
-defaultRoute
-	console log: 'default route'.
-	^'default'
-!
-
-routes
-	^routes
-! !
-
 Object subclass: #Nodis
 	instanceVariableNames: ''
 	category: 'Nodis'!
@@ -171,10 +144,6 @@ routeForMethod: aMethod on: anUrl
 	|a b c url|	
 	true ifTrue:[^NRedisHandler]
 ! !
-
-NHandler subclass: #NLibrosHandler
-	instanceVariableNames: ''
-	category: 'Nodis'!
 
 NHandler subclass: #NRedisHandler
 	instanceVariableNames: 'querystring redis methodHash'
