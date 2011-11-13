@@ -242,65 +242,14 @@ initialize
 	redis := (require value: 'redis') createClient.
 !
 
-manage: request returning: response
-	|regex regexResult routes methodDict |
-	routes := #{ 'GET' -> #{  '^/([^/]+)/?$' -> [:rresult |self collectionOf: (rresult at:2) responseAt: response ].
-						   '^/([^/]+)/(\d+)/?$' -> [:rresult | self memberOf: (rresult at: 2) index: (rresult at: 3) responseAt: response]
-						} .
-				'POST'  -> #{
-							} }.
-	console log: 'managing a request'.
-	console log: 'response is a', request url .
-
-	methodDict := (routes at: (request method)) .
-
-	methodDict keys do: [:x || matches |
-						 matches := (RegularExpression fromString:x) test: request url .
-						console log: matches.
-						matches ifTrue:[( methodDict at: x) value:  ((RegularExpression fromString:x) exec: request url)].
-						].
-!
-
 notFound
 	self response writeHead: 404.
 	self response end.
 !
 
-collectionOf: aModel responseAt: response
-	console log: 'collection of ',aModel.
-	redis lrange:aModel from:0 to: -1 eachDo: [:error :val | 
-										console log: 'value is ', val.
-										console log: error.
-										(val isKindOf: Array)
-										ifTrue: [self responseOkWithVal: ('[',val,']') responseAt: response]
-										ifFalse: [self notFound: response] 
- ].
-!
-
-responseOkWithVal: val responseAt: response
-	self responseOk: response.
-	 response end: val encoding: 'utf8'
-!
-
-responseOk: response
-	response writeHead:200 
-	withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
-!
-
 notFound: response
 	response writeHead: 404.
 	 response end.
-!
-
-memberOf: aModel index:index responseAt: response
-	console log: 'member of ',aModel, 'index: ' , index.
-	redis lindex:aModel index: index eachDo: [:error :val | 
-										console log: 'value is ', val.
-										console log: error.
-										(val isNil not)
-										ifTrue: [self responseOkWithVal: val responseAt: response]
-										ifFalse: [self notFound: response] 
- ].
 !
 
 request: aRequest
@@ -313,8 +262,8 @@ response: aResponse
 
 manage
 	|regex regexResult routes methodDict |
-	routes := #{ 'GET' -> #{  '^/([^/]+)/?$' -> [:rresult |self collectionOf: (rresult at:2) responseAt: self response ].
-						   '^/([^/]+)/(\d+)/?$' -> [:rresult | self memberOf: (rresult at: 2) index: (rresult at: 3) responseAt: self response]
+	routes := #{ 'GET' -> #{  '^/([^/]+)/?$' -> [:rresult |self collectionOf: (rresult at:2)  ].
+						   '^/([^/]+)/(\d+)/?$' -> [:rresult | self memberOf: (rresult at: 2) index: (rresult at: 3)]
 						} .
 				'POST'  -> #{
 							} }.
@@ -336,6 +285,38 @@ request
 
 response
 	^response
+!
+
+collectionOf: aModel
+	console log: 'collection of ',aModel.
+	redis lrange:aModel from:0 to: -1 eachDo: [:error :val | 
+										console log: 'value is ', val.
+										console log: error.
+										(val isKindOf: Array)
+										ifTrue: [self responseOkWithVal: ('[',val,']') ]
+										ifFalse: [self notFound] 
+ ].
+!
+
+memberOf: aModel index:index
+	console log: 'member of ',aModel, 'index: ' , index.
+	redis lindex:aModel index: index eachDo: [:error :val | 
+										console log: 'value is ', val.
+										console log: error.
+										(val isNil not)
+										ifTrue: [self responseOkWithVal: val ]
+										ifFalse: [self notFound] 
+ ].
+!
+
+responseOk
+	self response writeHead:200 
+	withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
+!
+
+responseOkWithVal: val 
+	self responseOk.
+	 self response end: val encoding: 'utf8'
 ! !
 
 !TestHandler class methodsFor: 'not yet classified'!
