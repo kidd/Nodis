@@ -27,11 +27,16 @@ runOnPort: aPort withRoutes: aNRouter
 !
 
 runOnPort: aPort
+	|a|
 	console log: 'listening at port', aPort ,String cr.
-	(http createServer:[ :request :response | 
+	a := (router routeForMethod: 'GET' on: 'hola') new.
+	
+	(http createServer:[ :request :response |
 					 	console log: request method, ' ', request url.
 						request setEncoding: 'utf8'.
-						(router routeForMethod: request method on: (url parse: request url)) new manage: request returning: response]) 
+						console log: request url class.
+						 "NRedisHandler new manage: request returning: response ."
+						TestHandler new manage: request returning: response. ]) 
 		listen: aPort
 ! !
 
@@ -112,18 +117,6 @@ defaultRoute
 	console log: 'Default handler'.
 	response writeHead: 404.
 	response end.
-!
-
-get: aPath
-	self subclassResponsability
-!
-
-post: aPath
-	self subclassResponsability
-!
-
-put: aPath
-	self subclassResponsability
 ! !
 
 Object subclass: #Nodis
@@ -156,7 +149,7 @@ put: aPath
 ! !
 
 NRouter subclass: #NHandlerRouter
-	instanceVariableNames: ''
+	instanceVariableNames: 'mapper'
 	category: 'Nodis'!
 
 !NHandlerRouter methodsFor: 'not yet classified'!
@@ -170,6 +163,11 @@ routeRequest: aRequest
 routeForMethod: aMethod on: anUrl
 	|a b c url|	
 	true ifTrue:[^NRedisHandler]
+!
+
+initialize
+	super initialize.
+	mapper := #{ 'regex1' -> ''  }
 ! !
 
 NHandler subclass: #NRedisHandler
@@ -181,19 +179,15 @@ NHandler subclass: #NRedisHandler
 manage: request returning: response
 	|regex regexResult meth|
 	console log: 'managing a request'.
-	meth := methodHash detect: [:k :v | (RegularExpression fromString: k) test: request url] 
-	self perform: meth value.
-	
+	console log: 'response is a', request url .
 	regex := RegularExpression fromString: '^/([^/]*)/?$'.
 	regexResult := (regex exec: request url). 
-	regexResult isNil ifFalse:[self collectionOf: (regexResult at:2)
-							requestedOn: request
-							andReturnedIn: response  ]
-				ifTrue: [self notFound: response]
+	regexResult isNil ifFalse:[self collectionOf: (regexResult at:2) ]
+				ifTrue: [self notFound]
 !
 
 initialize
-	super initialize.
+	"super initialize."
 	querystring := require value: 'querystring'.
 	redis := (require value: 'redis') createClient.
 !
@@ -226,5 +220,82 @@ memberOf: aModel withId: aNumber
 				val size >0
 					ifTrue: [self responseOkWithVal: val asJSON]
 					ifFalse: [self notFound]]
+!
+
+handle: request
+	console log: request url
+! !
+
+Object subclass: #TestHandler
+	instanceVariableNames: 'querystring redis'
+	category: 'Nodis'!
+
+!TestHandler methodsFor: 'not yet classified'!
+
+handle: request
+	console log: request url
+!
+
+initialize
+	"super initialize."
+	querystring := require value: 'querystring'.
+	redis := (require value: 'redis') createClient.
+!
+
+manage: request returning: response
+	|regex regexResult meth|
+	console log: 'managing a request'.
+	console log: 'response is a', request url .
+	regex := RegularExpression fromString: '^/([^/]*)/?$'.
+	regexResult := (regex exec: request url). 
+	regexResult isNil ifFalse:[self collectionOf: (regexResult at:2) responseAt: response ]
+				ifTrue: [self notFound]
+!
+
+notFound
+	self response writeHead: 404.
+	self response end.
+!
+
+collectionOf: aModel 
+	console log: 'collection of ',aModel.
+	redis lrange:aModel from:0 to: -1 eachDo: [:error :val | 
+										console log: val.
+										console log: error.
+										(val isKindOf: Array)
+										ifTrue: [self responseOkWitVal: val asJSON]
+										ifFalse: [self notFound] 
+ ].
+!
+
+responseOkWithVal: val
+	self responseOk.
+	self response end: val asJSON encoding: 'utf8'
+!
+
+responseOk
+	response writehead:200
+	withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
+!
+
+collectionOf: aModel responseAt: response
+	console log: 'collection of ',aModel.
+	redis lrange:aModel from:0 to: -1 eachDo: [:error :val | 
+										console log: 'value is ', val.
+										console log: error.
+										(val isKindOf: Array)
+										ifTrue: [self responseOkWithVal: val responseAt: response]
+										ifFalse: [self notFound] 
+ ].
+!
+
+responseOkWithVal: val responseAt: response
+	self responseOk: response.
+	 response end: ('[',val,']') encoding: 'utf8'
+!
+
+responseOk: response
+	response writeHead:200 
+	withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
 ! !
 
