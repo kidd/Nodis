@@ -36,7 +36,7 @@ runOnPort: aPort
 						request setEncoding: 'utf8'.
 						console log: request url class.
 						 "NRedisHandler new manage: request returning: response ."
-						TestHandler new manage: request returning: response. ]) 
+						(TestHandler with:request returning: response) manage. ]) 
 		listen: aPort
 ! !
 
@@ -227,7 +227,7 @@ handle: request
 ! !
 
 Object subclass: #TestHandler
-	instanceVariableNames: 'querystring redis'
+	instanceVariableNames: 'querystring redis request response'
 	category: 'Nodis'!
 
 !TestHandler methodsFor: 'not yet classified'!
@@ -301,5 +301,50 @@ memberOf: aModel index:index responseAt: response
 										ifTrue: [self responseOkWithVal: val responseAt: response]
 										ifFalse: [self notFound: response] 
  ].
+!
+
+request: aRequest
+	request := aRequest
+!
+
+response: aResponse	
+	response := aResponse
+!
+
+manage
+	|regex regexResult routes methodDict |
+	routes := #{ 'GET' -> #{  '^/([^/]+)/?$' -> [:rresult |self collectionOf: (rresult at:2) responseAt: self response ].
+						   '^/([^/]+)/(\d+)/?$' -> [:rresult | self memberOf: (rresult at: 2) index: (rresult at: 3) responseAt: self response]
+						} .
+				'POST'  -> #{
+							} }.
+	console log: 'managing a request'.
+	console log: 'response is a', self request url .
+
+	methodDict := (routes at: (self request method)) .
+
+	methodDict keys do: [:x || matches |
+						 matches := (RegularExpression fromString:x) test: self request url .
+						console log: matches.
+						matches ifTrue:[( methodDict at: x) value:  ((RegularExpression fromString:x) exec: self request url)].
+						].
+!
+
+request
+	^request
+!
+
+response
+	^response
+! !
+
+!TestHandler class methodsFor: 'not yet classified'!
+
+with: aRequest returning: aResponse
+	|t|
+	t := self new.
+	t request: aRequest.
+	t response: aResponse.
+	^t.
 ! !
 
