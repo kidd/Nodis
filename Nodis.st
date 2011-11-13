@@ -243,39 +243,27 @@ initialize
 !
 
 manage: request returning: response
-	|regex regexResult meth|
+	|regex regexResult routes methodDict |
+	routes := #{ 'GET' -> #{  '^/([^/]+)/?$' -> [:rresult |self collectionOf: (rresult at:2) responseAt: response ].
+						   '^/([^/]+)/(\d+)/?$' -> [:rresult | self memberOf: (rresult at: 2) index: (rresult at: 3) responseAt: response]
+						} .
+				'POST'  -> #{
+							} }.
 	console log: 'managing a request'.
 	console log: 'response is a', request url .
-	regex := RegularExpression fromString: '^/([^/]*)/?$'.
-	regexResult := (regex exec: request url). 
-	regexResult isNil ifFalse:[self collectionOf: (regexResult at:2) responseAt: response ]
-				ifTrue: [self notFound]
+
+	methodDict := (routes at: (request method)) .
+
+	methodDict keys do: [:x || matches |
+						 matches := (RegularExpression fromString:x) test: request url .
+						console log: matches.
+						matches ifTrue:[( methodDict at: x) value:  ((RegularExpression fromString:x) exec: request url)].
+						].
 !
 
 notFound
 	self response writeHead: 404.
 	self response end.
-!
-
-collectionOf: aModel 
-	console log: 'collection of ',aModel.
-	redis lrange:aModel from:0 to: -1 eachDo: [:error :val | 
-										console log: val.
-										console log: error.
-										(val isKindOf: Array)
-										ifTrue: [self responseOkWitVal: val asJSON]
-										ifFalse: [self notFound] 
- ].
-!
-
-responseOkWithVal: val
-	self responseOk.
-	self response end: val asJSON encoding: 'utf8'
-!
-
-responseOk
-	response writehead:200
-	withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
 !
 
 collectionOf: aModel responseAt: response
@@ -284,18 +272,34 @@ collectionOf: aModel responseAt: response
 										console log: 'value is ', val.
 										console log: error.
 										(val isKindOf: Array)
-										ifTrue: [self responseOkWithVal: val responseAt: response]
-										ifFalse: [self notFound] 
+										ifTrue: [self responseOkWithVal: ('[',val,']') responseAt: response]
+										ifFalse: [self notFound: response] 
  ].
 !
 
 responseOkWithVal: val responseAt: response
 	self responseOk: response.
-	 response end: ('[',val,']') encoding: 'utf8'
+	 response end: val encoding: 'utf8'
 !
 
 responseOk: response
 	response writeHead:200 
 	withContent: #{'Content-Type' -> 'application/json; charset=utf-8'} .
+!
+
+notFound: response
+	response writeHead: 404.
+	 response end.
+!
+
+memberOf: aModel index:index responseAt: response
+	console log: 'member of ',aModel, 'index: ' , index.
+	redis lindex:aModel index: index eachDo: [:error :val | 
+										console log: 'value is ', val.
+										console log: error.
+										(val isNil not)
+										ifTrue: [self responseOkWithVal: val responseAt: response]
+										ifFalse: [self notFound: response] 
+ ].
 ! !
 
